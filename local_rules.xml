@@ -1,0 +1,228 @@
+<!-- Local rules -->
+
+<!-- Modify it at your will. -->
+<!-- Copyright (C) 2015, Wazuh Inc. -->
+
+<!-- Example -->
+<group name="local,syslog,sshd,">
+
+  <!--
+  Dec 10 01:02:02 host sshd[1234]: Failed none for root from 1.1.1.1 port 1066 ssh2
+  -->
+  <rule id="100001" level="5">
+    <if_sid>5716</if_sid>
+    <srcip>1.1.1.1</srcip>
+    <description>sshd: authentication failed from IP 1.1.1.1.</description>
+    <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+  </rule>
+
+</group>
+ <group name="local,syslog,">
+
+<!-- High: SSH brute-force / invalid user activity -->
+  <rule id="100101" level="5">
+    <if_sid>5710,5716</if_sid>
+    <description>High Severity - Suspicious SSH invalid-user authentication attempt detected on Ubuntu</description>
+    <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+    <mitre>
+      <id>T1110.001</id>
+      <id>T1021.004</id>
+    </mitre>
+  </rule>
+
+ <!-- High: Multiple SSH attempts from same source -->
+  <rule id="100102" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>100101</if_matched_sid>
+    <same_source_ip />
+    <description>High Severity - Repeated SSH invalid-user login attempts detected from same source</description>
+    <group>authentication_failures,pci_dss_11.4,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+  
+<!-- Escalade : plusieurs échecs sudo par le même utilisateur sur une courte période -->
+<rule id="100103" level="13" frequency="3" timeframe="300">
+  <if_matched_sid>5401</if_matched_sid>
+  <same_user />
+  <description>High Severity - Multiple failed sudo attempts by same user (possible privilege escalation attack)</description>
+  <group>authentication_failed,privilege_escalation,linux,</group>
+  <mitre>
+    <id>T1548.003</id>
+  </mitre>
+</rule>
+
+<!-- Bonus : utilisateur non autorisé qui tente sudo = signal très fort -->
+<rule id="100104" level="14">
+  <if_sid>5405</if_sid>
+  <description>High Severity - Unauthorized user attempted sudo escalation (not in sudoers)</description>
+  <group>authentication_failed,privilege_escalation,linux,</group>
+  <mitre>
+    <id>T1548.003</id>
+  </mitre>
+</rule>
+
+  <!-- Critical: Sensitive file modification -->
+  <rule id="100105" level="15">
+    <if_sid>550</if_sid>
+    <match>/opt/wazuh-watch/critical_file.txt</match>
+    <description>Critical Severity - Sensitive monitored file modified on Ubuntu endpoint</description>
+    <group>fim,critical_asset,linux,</group>
+    <mitre>
+      <id>T1565.001</id>
+    </mitre>
+  </rule>
+  <rule id="100106" level="15">
+  <if_sid>550</if_sid>
+  <match>/etc/shadow|/etc/passwd|/etc/sudoers|/etc/group</match>
+  <description>Critical Severity - Password/account file modified on Ubuntu endpoint</description>
+  <group>fim,critical_asset,privilege_escalation,linux,</group>
+  <mitre>
+    <id>T1098</id>
+    <id>T1548.003</id>
+  </mitre>
+</rule>
+</group>
+<group name="suricata,ids,">
+
+  <rule id="100020" level="7">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature_id">9000001</field>
+    <description>Suricata: Scan de ports détecté depuis $(srcip)</description>
+    <group>recon,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100021" level="6">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature_id">9000002</field>
+    <description>Suricata: Ping sweep (reconnaissance ICMP) détecté depuis $(srcip)</description>
+    <group>recon,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100022" level="12">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature_id">9000003</field>
+    <description>Suricata: Tentative de DDoS (SYN Flood) détectée vers $(dstip)</description>
+    <group>dos,attack,pci_dss_11.4,</group>
+  </rule>
+
+</group>
+<group name="lolbin,linux,">
+  <rule id="100050" level="8">
+    <if_sid>80700</if_sid>
+    <match>a0="nc"|a0="ncat"|a0="socat"</match>
+    <description>LOLBin: outil reseau sensible detecte</description>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+    <group>lolbin,defense_evasion,pci_dss_6.6,</group>
+  </rule>
+
+  <rule id="100051" level="14">
+    <if_sid>80700</if_sid>
+    <match>a0="nc" a1="-e"|a0="ncat" a1="-e"|a0="socat" a1="EXEC:"</match>
+    <description>LOLBin CRITIQUE: reverse shell probable via nc/ncat/socat -e</description>
+    <mitre>
+      <id>T1059</id>
+      <id>T1071</id>
+    </mitre>
+    <group>lolbin,defense_evasion,critical,</group>
+  </rule>
+
+  <rule id="100053" level="12">
+    <if_sid>80700</if_sid>
+    <match>a0="base64" a1="-d"|a0="base64" a1="--decode"</match>
+    <description>LOLBin: decodage base64 explicite - usage suspect probable</description>
+    <mitre>
+      <id>T1140</id>
+    </mitre>
+    <group>lolbin,defense_evasion,pci_dss_6.6,</group>
+  </rule>
+
+  <rule id="100054" level="14">
+    <if_sid>80700</if_sid>
+    <match>a0="python" a1="-c"|a0="python3" a1="-c"|a0="perl" a1="-e"|a0="ruby" a1="-e"</match>
+    <description>LOLBin CRITIQUE: execution de code inline - reverse shell probable</description>
+    <mitre>
+      <id>T1059.006</id>
+    </mitre>
+    <group>lolbin,defense_evasion,critical,</group>
+  </rule>
+
+  <rule id="100055" level="13">
+    <if_sid>80700</if_sid>
+    <match>a0="curl" a1="-o"|a0="wget" a1="-O"|a0="curl" a1="--output"</match>
+    <description>LOLBin: telechargement en sortie standard - probable execution directe</description>
+    <mitre>
+      <id>T1105</id>
+    </mitre>
+    <group>lolbin,defense_evasion,critical,</group>
+  </rule>
+</group>
+
+<group name="exfiltration,suricata,">
+
+  <!-- Volume anormal de requêtes DNS depuis la même source (base : règle native 86603) -->
+  <rule id="100062" level="12" frequency="30" timeframe="60">
+    <if_matched_sid>86603</if_matched_sid>
+    <same_source_ip />
+    <description>DNS tunneling probable: volume de requetes DNS anormal depuis $(srcip)</description>
+    <mitre>
+      <id>T1071.004</id>
+      <id>T1048</id>
+    </mitre>
+    <group>exfiltration,dns_tunneling,</group>
+  </rule>
+
+  <!-- Sous-domaine anormalement long (souvent des données encodées) -->
+  <rule id="100063" level="12">
+    <if_sid>86603</if_sid>
+    <field name="dns.queries" type="pcre2">'rrname': '[^']{50,}'</field>
+    <description>DNS tunneling probable: sous-domaine anormalement long detecte</description>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+    <group>exfiltration,dns_tunneling,</group>
+  </rule>
+
+</group>
+<group name="windows,">
+  <rule id="100073" level="12" timeframe="900">
+    <if_group>authentication_success</if_group>
+    <if_matched_group>authentication_failed</if_matched_group>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>Windows: échecs d'authentification suivis d'une connexion réussie - compromission probable</description>
+    <mitre>
+      <id>T1078</id>
+      <id>T1110</id>
+    </mitre>
+    <group>compromission_critique,</group>
+  </rule>
+</group>
+<group name="windows,sysmon,powershell,">
+  <rule id="100074" level="13">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\powershell\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(-enc\b|-encodedcommand|downloadstring|downloadfile|invoke-webrequest|\biex\b|net\.webclient)</field>
+    <description>Windows : PowerShell suspect (téléchargement ou commande encodée)</description>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1105</id>
+    </mitre>
+  </rule>
+</group>
+<group name="windows,sysmon,">
+  <rule id="100075" level="3">
+    <if_sid>92213</if_sid>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)__PSScriptPolicyTest_</field>
+    <description>Sysmon : fichier de test de politique PowerShell (faux positif connu)</description>
+  </rule>
+</group>
+<group name="windows,sysmon,">
+  <rule id="100076" level="3">
+    <if_sid>92213</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)system32\\+cleanmgr\.exe$</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)\\Temp\\+[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}\\+</field>
+    <description>Sysmon : fichiers temporaires du Nettoyage de disque (faux positif connu)</description>
+  </rule>
+</group>
