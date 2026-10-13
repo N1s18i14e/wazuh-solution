@@ -1,5 +1,17 @@
 # Configuration d'une Solution basée sur Wazuh
 Ce dépôt centralise l'ensemble des fichiers de configuration, des scripts de réponse et des règles de détection nécessaires au déploiement d'une solution complète de surveillance et de sécurité basée sur **Wazuh**. Elle intègre également la détection réseau avec **Suricata**, la surveillance du noyau Linux via **Auditd** et l'automatisation de la gestion d'incidents.
+# Ordre de déploiement
+1-	Créer le réseau NAT et télécharger l’iso des machines virtuelles, à mettre en place
+2-	Installer Wazuh all-in-one
+3-	Déployer les agents Wazuh (et Sysmon sur Windows)
+4-	Installer Suricata et le brancher sur l'agent
+5-	Activer auditd
+6-	Déployer les règles de détection personnalisées
+7-	Configurer la réponse automatique
+8-	Installer Shuffle (Docker) sur la VM soar-shuffle
+9-	Relier Wazuh à Shuffle et construire le workflow (extraction de l'URL et du domaine, requête VirusTotal)
+10-	Exécuter le scénario de validation
+11- (à faire)	Notification par e-mail ; déploiement de TheHive et de Cortex
 
 # Liste des Configurations Sauvegardées
 
